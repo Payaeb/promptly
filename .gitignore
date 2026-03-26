@@ -1,0 +1,15 @@
+# Store packages (zip files for Mozilla submission)
+store/*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+PLAN.md

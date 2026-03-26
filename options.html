@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Promptly — Settings</title>
+  <link rel="stylesheet" href="styles/options.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Promptly Settings</h1>
+      <p class="subtitle">Configure your Claude.ai quick actions</p>
+    </div>
+
+    <!-- Button List -->
+    <div class="section">
+      <div class="section-header">
+        <h2>Your Buttons</h2>
+        <button id="add-button" class="btn btn-primary">+ Add Button</button>
+      </div>
+      <div id="buttons-container" class="buttons-container">
+        <!-- Rendered by JS -->
+      </div>
+      <div id="no-buttons" class="empty-state" style="display:none;">
+        <p>No buttons yet. Click "Add Button" to create your first one.</p>
+      </div>
+    </div>
+
+    <!-- Import / Export -->
+    <div class="section">
+      <h2>Import / Export</h2>
+      <p class="help-text">Share your button configurations with others or back them up.</p>
+      <div class="import-export-row">
+        <button id="export-btn" class="btn btn-secondary">Export Buttons (JSON)</button>
+        <button id="import-btn" class="btn btn-secondary">Import Buttons (JSON)</button>
+        <input type="file" id="import-file" accept=".json" style="display:none;">
+      </div>
+    </div>
+
+    <!-- Button Editor Modal -->
+    <div id="editor-overlay" class="modal-overlay" style="display:none;">
+      <div class="modal">
+        <h2 id="editor-title">Add Button</h2>
+        <form id="button-form">
+          <input type="hidden" id="edit-id">
+
+          <div class="form-group">
+            <label for="edit-name">Button Name</label>
+            <input type="text" id="edit-name" placeholder="e.g., Analyze Job Posting" required>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-content-mode">Content to Send</label>
+            <select id="edit-content-mode">
+              <option value="auto">Auto (selection if available, otherwise URL)</option>
+              <option value="url">Always use page URL</option>
+              <option value="selection">Always use selected text</option>
+            </select>
+            <span class="help-text">What gets inserted where you put {content} in your prompt.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-prompt">Prompt Template</label>
+            <textarea id="edit-prompt" rows="6" placeholder="Write your prompt here. Use {content} where you want the URL or selected text to appear.&#10;&#10;Example:&#10;Summarize this page: {content}" required></textarea>
+            <span class="help-text">Use <code>{content}</code> where the URL or selected text should go.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-project">Claude Project (optional)</label>
+            <div class="project-picker">
+              <select id="edit-project-select" style="display:none;">
+                <option value="">No project (new chat)</option>
+              </select>
+              <input type="text" id="edit-project-uuid" placeholder="Project UUID (from URL bar)">
+              <button type="button" id="load-projects-btn" class="btn btn-small">Load My Projects</button>
+              <span id="project-status" class="help-text"></span>
+            </div>
+            <span class="help-text">Leave empty to start a new chat without a project. Free plan users: leave this empty.</span>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="edit-auto-send">
+              Auto-send (send the prompt automatically without reviewing)
+            </label>
+          </div>
+
+          <div class="form-group" id="auto-close-group" style="display:none;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="edit-auto-close">
+              Auto-close tab (close the Claude tab after sending)
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="cancel-edit" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Button</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts/options.js"></script>
+</body>
+</html>
