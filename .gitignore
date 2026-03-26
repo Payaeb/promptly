@@ -1,5 +1,7 @@
-# Store packages (zip files for Mozilla submission)
-store/*.zip
+# Private / non-essential files
+CLAUDE.md
+PLAN.md
+store/
 
 # OS files
 .DS_Store
@@ -12,4 +14,3 @@ desktop.ini
 
 # Claude Code
 .claude/
-PLAN.md
