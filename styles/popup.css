@@ -39,10 +39,46 @@ body {
   overflow-y: auto;
 }
 
-/* Button row: run button + add-to-backlog button side by side */
+/* Wrapper for a button row plus its expandable backlog list */
+.button-row-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Button row: caret + run button + add-to-backlog button side by side */
 .button-row {
   display: flex;
   gap: 4px;
+  align-items: stretch;
+}
+
+/* Disclosure caret on the left of each row */
+.disclosure-caret {
+  flex-shrink: 0;
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #aaa;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.disclosure-caret:hover {
+  color: #c4a0ff;
+  background: rgba(196, 160, 255, 0.1);
+}
+
+.disclosure-caret.hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .action-button {
@@ -116,19 +152,101 @@ body {
   color: #c4a0ff;
 }
 
-/* Already in backlog — green checkmark */
+/* Already in backlog — green checkmark, click to remove */
 .backlog-add-button.in-backlog {
   background: #1a3a2e;
   border-color: #2a5a3e;
   color: #6bcfa0;
-  cursor: default;
+  cursor: pointer;
   font-size: 14px;
 }
 
 .backlog-add-button.in-backlog:hover {
+  background: #4a2a2a;
+  border-color: #6a3a3a;
+  color: #ff8b8b;
+}
+
+/* Expandable backlog list under a row */
+.backlog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 14px;
+  margin-bottom: 4px;
+  padding: 4px 6px 4px 10px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #20203a;
+  border: 1px solid #2a2a4a;
+  border-left: 2px solid rgba(196, 160, 255, 0.2);
+  border-radius: 6px;
+}
+
+.backlog-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: #b0b0c0;
+  border-radius: 4px;
+}
+
+.backlog-item:hover {
+  background: #2a2a4a;
+}
+
+.backlog-item.is-current {
   background: #1a3a2e;
-  border-color: #2a5a3e;
-  color: #6bcfa0;
+  color: #a0e0c0;
+}
+
+.backlog-item.is-current:hover {
+  background: #234a3a;
+}
+
+.backlog-item-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.backlog-item-remove {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #888;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.backlog-item-remove:hover {
+  background: #4a2a2a;
+  color: #ff8b8b;
+}
+
+.backlog-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.backlog-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.backlog-list::-webkit-scrollbar-thumb {
+  background: #3a3a5c;
+  border-radius: 3px;
 }
 
 .empty-state {
@@ -137,6 +255,29 @@ body {
   color: #888;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.empty-state-button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: #2a2a4a;
+  color: #c4a0ff;
+  border: 1px solid #3a3a5c;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.empty-state-button:hover {
+  background: #3a3a5c;
+  border-color: #c4a0ff;
+}
+
+button:focus-visible,
+.disclosure-caret:focus-visible {
+  outline: 2px solid #c4a0ff;
+  outline-offset: 1px;
 }
 
 .status-message {
@@ -156,14 +297,21 @@ body {
   text-align: center;
 }
 
-.footer a {
+.footer a,
+.footer .footer-link {
   color: #888;
   text-decoration: none;
   font-size: 12px;
   transition: color 0.15s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
 }
 
-.footer a:hover {
+.footer a:hover,
+.footer .footer-link:hover {
   color: #c4a0ff;
 }
 
@@ -179,4 +327,139 @@ body {
 .button-list::-webkit-scrollbar-thumb {
   background: #3a3a5c;
   border-radius: 3px;
+}
+
+/* Android-only overrides — touch-friendly tap targets, fluid width */
+body.is-android {
+  width: 100%;
+  max-width: none;
+  min-width: 320px;
+  font-size: 15px;
+}
+
+body.is-android .popup-container {
+  width: 100%;
+}
+
+body.is-android .button-list {
+  max-height: none;
+  width: 100%;
+  gap: 8px;
+}
+
+body.is-android .button-row-wrapper {
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+body.is-android .button-row {
+  gap: 6px;
+}
+
+body.is-android .disclosure-caret {
+  min-width: 48px;
+  min-height: 48px;
+  font-size: 16px;
+  background: rgba(196, 160, 255, 0.12);
+  border: 1px solid rgba(196, 160, 255, 0.2);
+}
+
+body.is-android .disclosure-caret.hidden {
+  display: none;
+}
+
+body.is-android .action-button {
+  min-height: 48px;
+  font-size: 15px;
+  padding: 12px 14px;
+}
+
+body.is-android .backlog-add-button {
+  min-width: 48px;
+  min-height: 48px;
+  width: 48px;
+  font-size: 20px;
+}
+
+body.is-android .backlog-add-button.in-backlog {
+  background: #3a2a2a;
+  border-color: #6a3a3a;
+  color: #ff8b8b;
+  font-size: 16px;
+  border-width: 2px;
+}
+
+body.is-android .backlog-list {
+  max-height: none;
+}
+
+body.is-android .backlog-item {
+  min-height: 48px;
+  font-size: 15px;
+  padding: 8px 8px;
+}
+
+body.is-android .backlog-item-remove {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+}
+
+body.is-android .empty-state-button {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 16px;
+  font-size: 15px;
+}
+
+body.is-android .footer {
+  padding: 12px 16px;
+}
+
+body.is-android .footer a,
+body.is-android .footer .footer-link {
+  display: inline-block;
+  min-height: 48px;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+body.is-android .status-message {
+  font-size: 14px;
+  padding: 12px 16px;
+}
+
+body.is-android .row-hint,
+body.is-android .run-meta {
+  font-size: 13px;
+  padding: 4px 8px 0 8px;
+  color: #a0a0b0;
+  line-height: 1.3;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.is-android .row-hint::before,
+body.is-android .run-meta::before {
+  content: "↳ ";
+}
+
+body.is-android .run-meta {
+  color: #7a7a90;
+  font-style: italic;
+}
+
+body.is-android .empty-state {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+body.is-android .action-button-name {
+  user-select: none;
+  -webkit-user-select: none;
 }

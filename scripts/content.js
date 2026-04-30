@@ -31,11 +31,15 @@ async function fillAndSend(prompt, autoSend, autoClose) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
   } else {
     // contenteditable div — use a paragraph element
-    input.innerHTML = "";
+    while (input.firstChild) input.removeChild(input.firstChild);
     const lines = prompt.split("\n");
-    lines.forEach((line, i) => {
+    lines.forEach((line) => {
       const p = document.createElement("p");
-      p.textContent = line || "\u200B"; // zero-width space for empty lines
+      if (line) {
+        p.textContent = line;
+      } else {
+        p.appendChild(document.createElement("br"));
+      }
       input.appendChild(p);
     });
     input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -50,9 +54,26 @@ async function fillAndSend(prompt, autoSend, autoClose) {
 
 // For ?q= pre-filled chats, just click send
 async function autoSendExisting(autoClose) {
-  // Wait for the input to be populated by claude.ai
-  await sleep(1000);
+  const ready = await waitForInputContent(5000);
+  if (!ready) {
+    console.warn("[Promptly] Auto-send timeout — input never populated. Aborted send.");
+    return;
+  }
   clickSendButton(autoClose);
+}
+
+async function waitForInputContent(maxMs = 5000) {
+  const selector = 'div[contenteditable="true"], textarea, [data-placeholder]';
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    const input = document.querySelector(selector);
+    if (input) {
+      const text = (input.textContent || input.value || "").trim();
+      if (text.length > 0) return input;
+    }
+    await sleep(150);
+  }
+  return null;
 }
 
 // Find and click the send button

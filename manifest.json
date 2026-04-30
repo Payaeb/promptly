@@ -1,18 +1,23 @@
 {
   "manifest_version": 2,
   "name": "Promptly",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "One-click actions for Claude.ai — send any page or selected text to Claude with pre-configured prompts.",
   "icons": {
     "48": "icons/icon-48.png",
     "96": "icons/icon-96.png"
   },
+  "developer": {
+    "name": "Payaeb",
+    "url": "https://github.com/Payaeb/promptly"
+  },
+  "homepage_url": "https://github.com/Payaeb/promptly",
   "browser_specific_settings": {
     "gecko": {
       "id": "promptly@promptly-extension",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
-        "required": ["none"]
+        "required": ["websiteContent"]
       }
     },
     "gecko_android": {
@@ -23,7 +28,10 @@
     "activeTab",
     "storage",
     "tabs",
-    "*://claude.ai/*"
+    "contextMenus",
+    "notifications",
+    "*://claude.ai/*",
+    "<all_urls>"
   ],
   "browser_action": {
     "default_icon": {
@@ -32,6 +40,15 @@
     },
     "default_title": "Promptly",
     "default_popup": "popup.html"
+  },
+  "commands": {
+    "quick-add-hovered-link": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Quick-add the link under your mouse to your configured target"
+    }
   },
   "options_ui": {
     "page": "options.html",
@@ -42,6 +59,13 @@
       "matches": ["*://claude.ai/*"],
       "js": ["scripts/content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "exclude_matches": ["*://claude.ai/*"],
+      "js": ["scripts/link-handler.js"],
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "background": {

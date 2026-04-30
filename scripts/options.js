@@ -1,7 +1,29 @@
 // Promptly — Options Page Script
 // Manages button configuration, project picker, import/export
 
-document.addEventListener("DOMContentLoaded", () => {
+let isAndroid = false;
+
+async function detectPlatform() {
+  try {
+    const info = await Promise.race([
+      browser.runtime.getPlatformInfo(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 300))
+    ]);
+    isAndroid = info && info.os === "android";
+    if (isAndroid) document.body.classList.add("is-android");
+  } catch (e) {}
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await detectPlatform();
+
+  const quickAddSection = document.getElementById("quick-add-section");
+  const androidShortcutInfo = document.getElementById("android-shortcut-info");
+  if (isAndroid) {
+    if (quickAddSection) quickAddSection.hidden = true;
+    if (androidShortcutInfo) androidShortcutInfo.hidden = false;
+  }
+
   const buttonsContainer = document.getElementById("buttons-container");
   const noButtons = document.getElementById("no-buttons");
   const addButton = document.getElementById("add-button");
@@ -18,14 +40,75 @@ document.addEventListener("DOMContentLoaded", () => {
   const projectSelect = document.getElementById("edit-project-select");
   const projectUuidInput = document.getElementById("edit-project-uuid");
   const projectStatus = document.getElementById("project-status");
+  const quickAddTargetSelect = document.getElementById("quick-add-target");
+  const quickAddEmptyHelp = document.getElementById("quick-add-empty-help");
 
   let buttons = [];
+  let quickAddTarget = "";
+  let editorDirty = false;
+
+  async function persistButtons() {
+    const response = await browser.runtime.sendMessage({ action: "saveButtons", buttons });
+    if (!response || !response.ok) {
+      alert("Couldn't save: " + ((response && response.error) || "unknown error"));
+      return false;
+    }
+    return true;
+  }
+
+  async function persistQuickAddTarget(value) {
+    const response = await browser.runtime.sendMessage({ action: "saveQuickAddTarget", quickAddTarget: value });
+    if (!response || !response.ok) {
+      alert("Couldn't save: " + ((response && response.error) || "unknown error"));
+      return false;
+    }
+    return true;
+  }
 
   // Load and render buttons
   async function loadButtons() {
-    const data = await browser.storage.local.get("buttons");
+    const data = await browser.storage.local.get(["buttons", "quickAddTarget"]);
     buttons = (data.buttons || []).sort((a, b) => a.order - b.order);
+    quickAddTarget = data.quickAddTarget || "";
     renderButtons();
+    await renderQuickAddTarget();
+  }
+
+  async function renderQuickAddTarget() {
+    if (!quickAddTargetSelect) return;
+    while (quickAddTargetSelect.firstChild) {
+      quickAddTargetSelect.removeChild(quickAddTargetSelect.firstChild);
+    }
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "None — disables quick-add shortcut";
+    quickAddTargetSelect.appendChild(noneOpt);
+
+    buttons.forEach((b) => {
+      const opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = b.name;
+      quickAddTargetSelect.appendChild(opt);
+    });
+
+    const stillExists = quickAddTarget && buttons.some((b) => b.id === quickAddTarget);
+    if (quickAddTarget && !stillExists) {
+      const cleared = await persistQuickAddTarget("");
+      if (cleared) {
+        quickAddTarget = "";
+      } else {
+        console.warn("[Promptly] Failed to clear stale quickAddTarget; will retry on next save.");
+      }
+    }
+    quickAddTargetSelect.value = quickAddTarget;
+
+    if (buttons.length === 0) {
+      quickAddTargetSelect.style.display = "none";
+      if (quickAddEmptyHelp) quickAddEmptyHelp.style.display = "block";
+    } else {
+      quickAddTargetSelect.style.display = "";
+      if (quickAddEmptyHelp) quickAddEmptyHelp.style.display = "none";
+    }
   }
 
   function renderButtons() {
@@ -114,7 +197,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Open the editor modal
+  let modalHistoryPushed = false;
+
   function openEditor(btn = null) {
     editorTitle.textContent = btn ? "Edit Button" : "Add Button";
     document.getElementById("edit-id").value = btn ? btn.id : "";
@@ -124,21 +208,51 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("edit-auto-send").checked = btn ? btn.autoSend : false;
     document.getElementById("edit-auto-close").checked = btn ? btn.autoClose : false;
 
-    // Project field
     projectSelect.style.display = "none";
     projectUuidInput.style.display = "block";
     projectUuidInput.value = btn ? btn.projectUuid || "" : "";
     projectStatus.textContent = "";
 
-    // Auto-close visibility
     autoCloseGroup.style.display = autoSendCheckbox.checked ? "block" : "none";
 
     editorOverlay.style.display = "flex";
+    editorDirty = false;
+
+    if (isAndroid && !modalHistoryPushed) {
+      history.pushState({ promptlyModal: true }, "");
+      modalHistoryPushed = true;
+    }
   }
 
-  function closeEditor() {
-    editorOverlay.style.display = "none";
+  function tryCloseEditor(fromPopstate = false) {
+    if (editorDirty) {
+      if (!confirm("Discard unsaved changes?")) return false;
+    }
+    editorDirty = false;
+    closeEditor(fromPopstate);
+    return true;
   }
+
+  function closeEditor(fromPopstate = false) {
+    editorOverlay.style.display = "none";
+    if (isAndroid && modalHistoryPushed) {
+      modalHistoryPushed = false;
+      // When closing via popstate the history entry is already consumed,
+      // so calling history.back() would navigate away from the page.
+      if (!fromPopstate && history.state && history.state.promptlyModal) {
+        history.back();
+      }
+    }
+  }
+
+  window.addEventListener("popstate", () => {
+    if (!isAndroid) return;
+    if (editorOverlay.style.display === "none") return;
+    if (!tryCloseEditor(true)) {
+      history.pushState({ promptlyModal: true }, "");
+      modalHistoryPushed = true;
+    }
+  });
 
   // Save button from form
   async function saveButton(e) {
@@ -149,11 +263,18 @@ document.addEventListener("DOMContentLoaded", () => {
       ? projectSelect.value
       : projectUuidInput.value.trim();
 
+    const promptTemplate = document.getElementById("edit-prompt").value;
+    if (!promptTemplate.includes("{content}")) {
+      if (!confirm("This prompt has no {content} placeholder — the URL/selection won't be inserted. Save anyway?")) {
+        return;
+      }
+    }
+
     const buttonData = {
       id,
       name: document.getElementById("edit-name").value.trim(),
       contentMode: document.getElementById("edit-content-mode").value,
-      promptTemplate: document.getElementById("edit-prompt").value,
+      promptTemplate: promptTemplate,
       projectUuid: projectValue,
       autoSend: document.getElementById("edit-auto-send").checked,
       autoClose: document.getElementById("edit-auto-close").checked,
@@ -161,6 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const existingIndex = buttons.findIndex((b) => b.id === id);
+    const snapshot = buttons.map((b) => ({ ...b }));
     if (existingIndex >= 0) {
       buttonData.order = buttons[existingIndex].order;
       buttons[existingIndex] = buttonData;
@@ -169,28 +291,65 @@ document.addEventListener("DOMContentLoaded", () => {
       buttons.push(buttonData);
     }
 
-    await browser.storage.local.set({ buttons });
+    const ok = await persistButtons();
+    if (!ok) {
+      buttons.length = 0;
+      buttons.push(...snapshot);
+      return;
+    }
+    editorDirty = false;
     closeEditor();
     renderButtons();
+    await renderQuickAddTarget();
   }
 
   // Delete a button
   async function deleteButton(id) {
     if (!confirm("Delete this button?")) return;
-    buttons = buttons.filter((b) => b.id !== id);
+    const snapshot = buttons.map((b) => ({ ...b }));
+    const previousQuickAdd = quickAddTarget;
+    const filtered = buttons.filter((b) => b.id !== id);
+    buttons.length = 0;
+    buttons.push(...filtered);
     reindex();
-    await browser.storage.local.set({ buttons });
+    const ok = await persistButtons();
+    if (!ok) {
+      buttons.length = 0;
+      buttons.push(...snapshot);
+      return;
+    }
+    if (previousQuickAdd === id) {
+      quickAddTarget = "";
+      const cleared = await persistQuickAddTarget("");
+      if (!cleared) {
+        quickAddTarget = previousQuickAdd;
+        console.warn("[Promptly] Failed to clear quickAddTarget after button delete; will retry on next save.");
+      }
+    }
+    try {
+      await browser.runtime.sendMessage({ action: "deleteBacklog", buttonId: id });
+    } catch (e) {
+      console.warn("[Promptly] Failed to remove orphan backlog for deleted button:", e);
+    }
     renderButtons();
+    await renderQuickAddTarget();
   }
 
   // Move a button up or down
   async function moveButton(index, direction) {
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= buttons.length) return;
+    const snapshot = buttons.map((b) => ({ ...b }));
     [buttons[index], buttons[newIndex]] = [buttons[newIndex], buttons[index]];
     reindex();
-    await browser.storage.local.set({ buttons });
+    const ok = await persistButtons();
+    if (!ok) {
+      buttons.length = 0;
+      buttons.push(...snapshot);
+      return;
+    }
     renderButtons();
+    await renderQuickAddTarget();
   }
 
   function reindex() {
@@ -217,8 +376,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Populate dropdown
-      projectSelect.innerHTML = '<option value="">No project (new chat)</option>';
+      while (projectSelect.firstChild) projectSelect.removeChild(projectSelect.firstChild);
+      const noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = "No project (new chat)";
+      projectSelect.appendChild(noneOpt);
       response.projects.forEach((p) => {
         const opt = document.createElement("option");
         opt.value = p.uuid;
@@ -240,10 +402,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Export buttons as JSON
   function exportButtons() {
     const exportData = {
-      promptly_version: "1.0.0",
+      promptly_version: "1.2.0",
       exported_at: new Date().toISOString(),
       buttons: buttons.map((b) => ({
         name: b.name,
@@ -252,7 +413,8 @@ document.addEventListener("DOMContentLoaded", () => {
         projectUuid: b.projectUuid,
         autoSend: b.autoSend,
         autoClose: b.autoClose
-      }))
+      })),
+      quickAddTarget: quickAddTarget || ""
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
@@ -264,6 +426,19 @@ document.addEventListener("DOMContentLoaded", () => {
     URL.revokeObjectURL(url);
   }
 
+  function isValidImportButton(b) {
+    if (!b || typeof b !== "object") return false;
+    if (typeof b.name !== "string" || b.name.length < 1 || b.name.length > 200) return false;
+    const validModes = ["auto", "url", "selection"];
+    if (validModes.indexOf(b.contentMode) < 0) return false;
+    if (typeof b.promptTemplate !== "string" || b.promptTemplate.length > 100000) return false;
+    if (b.projectUuid !== undefined && b.projectUuid !== null && b.projectUuid !== "") {
+      if (typeof b.projectUuid !== "string") return false;
+      if (!/^[a-f0-9-]{32,40}$/i.test(b.projectUuid)) return false;
+    }
+    return true;
+  }
+
   // Import buttons from JSON
   async function importButtons(e) {
     const file = e.target.files[0];
@@ -271,32 +446,91 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-
-      if (!data.buttons || !Array.isArray(data.buttons)) {
-        alert("Invalid file. Expected a Promptly export file.");
+      if (text.length > 5_000_000) {
+        alert("File too large (5MB cap).");
+        importFile.value = "";
         return;
       }
 
-      const count = data.buttons.length;
-      if (!confirm(`Import ${count} button(s)? This will add them to your existing buttons.`)) return;
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        alert("Invalid file format: not valid JSON.");
+        importFile.value = "";
+        return;
+      }
 
+      if (!data || typeof data !== "object" || !Array.isArray(data.buttons)) {
+        alert("Invalid file format.");
+        importFile.value = "";
+        return;
+      }
+
+      const total = data.buttons.length;
+      if (!confirm(`Import ${total} button(s)? This will add them to your existing buttons.`)) {
+        importFile.value = "";
+        return;
+      }
+
+      const snapshot = buttons.map((b) => ({ ...b }));
+
+      // Resolve the import's quickAddTarget by NAME, since the original id from
+      // the export will not match — every imported button gets a fresh id below.
+      let restoredQuickAddTargetName = null;
+      if (typeof data.quickAddTarget === "string" && data.quickAddTarget) {
+        const oldTargetButton = data.buttons.find((b) => b && b.id === data.quickAddTarget);
+        if (oldTargetButton && typeof oldTargetButton.name === "string") {
+          restoredQuickAddTargetName = oldTargetButton.name;
+        }
+      }
+
+      let imported = 0;
+      let skipped = 0;
+      const newlyImported = [];
       data.buttons.forEach((b) => {
-        buttons.push({
+        if (!isValidImportButton(b)) {
+          skipped++;
+          return;
+        }
+        const fresh = {
           id: generateId(),
-          name: b.name || "Imported Button",
-          contentMode: b.contentMode || "auto",
-          promptTemplate: b.promptTemplate || "",
+          name: b.name,
+          contentMode: b.contentMode,
+          promptTemplate: b.promptTemplate,
           projectUuid: b.projectUuid || "",
-          autoSend: b.autoSend || false,
-          autoClose: b.autoClose || false,
+          autoSend: b.autoSend === true,
+          autoClose: b.autoClose === true,
           order: buttons.length
-        });
+        };
+        buttons.push(fresh);
+        newlyImported.push(fresh);
+        imported++;
       });
 
-      await browser.storage.local.set({ buttons });
+      const ok = await persistButtons();
+      if (!ok) {
+        buttons.length = 0;
+        buttons.push(...snapshot);
+        importFile.value = "";
+        return;
+      }
+
+      if (restoredQuickAddTargetName) {
+        const newTarget = newlyImported.find((b) => b.name === restoredQuickAddTargetName);
+        if (newTarget) {
+          const qOk = await persistQuickAddTarget(newTarget.id);
+          if (qOk) quickAddTarget = newTarget.id;
+        }
+      }
+
       renderButtons();
-      alert(`Imported ${count} button(s) successfully.`);
+      await renderQuickAddTarget();
+      if (skipped > 0) {
+        alert(`Imported ${imported} of ${total} buttons; ${skipped} skipped (invalid).`);
+      } else {
+        alert(`Imported ${imported} button(s) successfully.`);
+      }
     } catch (err) {
       alert("Error reading file: " + err.message);
     }
@@ -307,28 +541,58 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Helpers
   function generateId() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return "btn-" + crypto.randomUUID();
+    }
     return "btn-" + Date.now() + "-" + Math.random().toString(36).substring(2, 8);
   }
 
   function contentModeLabel(mode) {
-    const labels = { url: "URL", selection: "Selected text", auto: "Auto" };
+    const labels = { url: "URL", selection: "Selected text", auto: "Selection or URL" };
     return labels[mode] || mode;
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+  const modalCloseBtn = document.getElementById("modal-close");
+  if (modalCloseBtn) {
+    modalCloseBtn.addEventListener("click", () => tryCloseEditor());
   }
+
+  const dirtyFieldIds = [
+    "edit-name",
+    "edit-prompt",
+    "edit-content-mode",
+    "edit-project-uuid",
+    "edit-project-select",
+    "edit-auto-send",
+    "edit-auto-close"
+  ];
+  dirtyFieldIds.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", () => { editorDirty = true; });
+    el.addEventListener("change", () => { editorDirty = true; });
+  });
 
   // Event listeners
   addButton.addEventListener("click", () => openEditor());
-  cancelEdit.addEventListener("click", closeEditor);
+  cancelEdit.addEventListener("click", () => tryCloseEditor());
   buttonForm.addEventListener("submit", saveButton);
   exportBtn.addEventListener("click", exportButtons);
   importBtn.addEventListener("click", () => importFile.click());
   importFile.addEventListener("change", importButtons);
   loadProjectsBtn.addEventListener("click", loadProjects);
+
+  if (quickAddTargetSelect) {
+    quickAddTargetSelect.addEventListener("change", async () => {
+      const previous = quickAddTarget;
+      quickAddTarget = quickAddTargetSelect.value || "";
+      const ok = await persistQuickAddTarget(quickAddTarget);
+      if (!ok) {
+        quickAddTarget = previous;
+        quickAddTargetSelect.value = previous;
+      }
+    });
+  }
 
   autoSendCheckbox.addEventListener("change", () => {
     autoCloseGroup.style.display = autoSendCheckbox.checked ? "block" : "none";
@@ -339,12 +603,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Close modal on overlay click
   editorOverlay.addEventListener("click", (e) => {
-    if (e.target === editorOverlay) closeEditor();
+    if (e.target === editorOverlay) tryCloseEditor();
   });
 
   // Close modal on Escape
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeEditor();
+    if (e.key === "Escape" && editorOverlay.style.display === "flex") tryCloseEditor();
   });
 
   // Init

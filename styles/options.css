@@ -6,6 +6,14 @@
   box-sizing: border-box;
 }
 
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #c4a0ff;
+  outline-offset: 1px;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: #0f0f1a;
@@ -221,6 +229,12 @@ body {
   color: #c4a0ff;
 }
 
+.help-text-secondary {
+  opacity: 0.7;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -338,4 +352,114 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #3a3a5c;
   border-radius: 4px;
+}
+
+/* Android-only overrides — touch-friendly tap targets and fullscreen modal */
+body.is-android {
+  font-size: 15px;
+}
+
+body.is-android .container {
+  padding: 20px 16px;
+}
+
+body.is-android .button-card-actions button,
+body.is-android .button-card-actions .btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 12px;
+  font-size: 18px;
+}
+
+body.is-android .section .btn,
+body.is-android .modal .btn,
+body.is-android .btn-primary,
+body.is-android .btn-secondary {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 15px;
+}
+
+body.is-android .form-group input[type="text"],
+body.is-android .form-group textarea,
+body.is-android .form-group select,
+body.is-android select#quick-add-target {
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 15px;
+}
+
+body.is-android .help-text {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+body.is-android .checkbox-label {
+  font-size: 15px;
+  padding: 6px 0;
+}
+
+body.is-android .checkbox-label input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+}
+
+body.is-android .modal {
+  width: 100%;
+  max-width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  padding: 20px 16px;
+}
+
+body.is-android .modal-overlay {
+  padding: 0;
+}
+
+body.is-android .button-card {
+  padding: 16px;
+}
+
+body.is-android .button-card-actions {
+  gap: 6px;
+}
+
+body.is-android .project-picker {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+body.is-android .project-picker select,
+body.is-android .project-picker input[type="text"] {
+  width: 100%;
+  min-width: 0;
+}
+
+body:not(.is-android) .modal-android-bar {
+  display: none;
+}
+
+body.is-android .modal-android-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #1a1a2e;
+  padding: 8px;
+  margin: -20px -16px 12px -16px;
+  display: flex;
+  justify-content: flex-end;
+  border-bottom: 1px solid #2a2a4a;
+  z-index: 1;
+}
+
+body.is-android .modal-android-bar button {
+  width: 48px;
+  height: 48px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 24px;
+  cursor: pointer;
 }
