@@ -57,6 +57,9 @@ async function waitForSchema() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   await detectPlatform();
+  try {
+    await browser.runtime.sendMessage({ action: "ensureSeeded" });
+  } catch (e) {}
   await waitForSchema();
 
   const buttonList = document.getElementById("button-list");

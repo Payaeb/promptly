@@ -16,6 +16,9 @@ async function detectPlatform() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   await detectPlatform();
+  try {
+    await browser.runtime.sendMessage({ action: "ensureSeeded" });
+  } catch (e) {}
 
   const quickAddSection = document.getElementById("quick-add-section");
   const androidShortcutInfo = document.getElementById("android-shortcut-info");

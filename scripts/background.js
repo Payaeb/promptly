@@ -612,6 +612,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return Promise.resolve({ ok: false, error: "Unauthorized sender" });
   }
 
+  if (message.action === "ensureSeeded") {
+    return ensureSeeded().then(() => ({ ok: true }));
+  }
+
   if (message.action === "getPlatform") {
     if (cachedPlatform) return Promise.resolve({ os: cachedPlatform });
     return platformPromise.then((os) => ({ os }));
@@ -881,7 +885,22 @@ browser.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
-platformPromise.then(() => {
+async function ensureSeeded() {
+  try {
+    const data = await browser.storage.local.get(["buttons", "schemaVersion"]);
+    const writes = {};
+    if (data.schemaVersion !== SCHEMA_VERSION) writes.schemaVersion = SCHEMA_VERSION;
+    if (!Array.isArray(data.buttons) || data.buttons.length === 0) writes.buttons = DEFAULT_BUTTONS;
+    if (Object.keys(writes).length > 0) {
+      await browser.storage.local.set(writes);
+    }
+  } catch (e) {
+    // ignore; caller will see via storage state
+  }
+}
+
+platformPromise.then(async () => {
+  await ensureSeeded();
   buildContextMenus();
   updateBadge();
 });
